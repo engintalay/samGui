@@ -37,24 +37,35 @@ def check_and_set_device(required_memory_mb=6144):  # En az 6 GB boş bellek ger
         logging.warning("GPU bulunamadı. CPU kullanılacak.")
         return torch.device("cpu")
 
-# SAM modelini yükleme
-logging.info("SAM modeli yükleniyor...")
+# SAM modelini yükleme fonksiyonu
+def load_sam_model(model_type):
+    logging.info(f"SAM modeli yükleniyor: {model_type}")
+    sam_checkpoint_map = {
+        "vit_b": "sam_vit_b_01ec64.pth",
+        "vit_h": "sam_vit_h_4b8939.pth",
+        "vit_l": "sam_vit_l_0b3195.pth"
+    }
+    sam_checkpoint = sam_checkpoint_map[model_type]
+    if not os.path.exists(sam_checkpoint):
+        logging.info(f"{model_type} modeli indiriliyor...")
+        url_map = {
+            "vit_b": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+            "vit_h": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth",
+            "vit_l": "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
+        }
+        urllib.request.urlretrieve(url_map[model_type], sam_checkpoint)
+        logging.info(f"{model_type} modeli başarıyla indirildi.")
+    sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+    sam.to(device)
+    logging.info(f"SAM modeli başarıyla yüklendi: {model_type}")
+    return SamPredictor(sam)
+
+# GPU belleğini kontrol et ve cihazı ayarla
 device = check_and_set_device(required_memory_mb=6144)  # En az 6 GB boş bellek gereksinimi
-sam_checkpoint = "sam_vit_l_0b3195.pth"  # vit_l modeli için dosya adı
 
-# Eğer dosya mevcut değilse indir
-if not os.path.exists(sam_checkpoint):
-    logging.info("SAM model dosyası indiriliyor...")
-    url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
-    urllib.request.urlretrieve(url, sam_checkpoint)
-    logging.info("SAM model dosyası başarıyla indirildi.")
-
-model_type = "vit_l"  # En büyük model tipi
-logging.info(f"Kullanılan SAM modeli: {model_type}")  # Model türünü logla
-sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-sam.to(device)  # Modeli seçilen cihaza taşı
-predictor = SamPredictor(sam)
-logging.info(f"SAM modeli başarıyla yüklendi. Kullanılan cihaz: {device}")
+# Başlangıçta varsayılan model
+model_type = "vit_l"  # Varsayılan model
+predictor = load_sam_model(model_type)
 
 # Yeni bir fonksiyon: GPU belleği yetersizse işlemleri CPU'ya taşı
 def safe_predict(predictor, *args, **kwargs):
@@ -294,16 +305,25 @@ try:
                 5. **Seçimi Sil**: Listeden bir seçim yaparak belirli bir noktayı ve ilgili zoom önizlemesini kaldırabilirsiniz.
                 6. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
                 7. **Maske İndir**: 'Maske İndir' düğmesine tıklayarak oluşturulan maskeyi indirebilirsiniz.
-                8. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
+                8. **Yeni Resim**: 'Yeni Resim' düğmesine tıklayarak tüm seçimleri ve maskeleri sıfırlayabilirsiniz.
+                9. **Model Seçimi**: Aşağıdaki menüden SAM modelini seçebilirsiniz.
+                10. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
                 """)
                 device_info_output = gr.Textbox(label="Kullanılan Donanım", value=get_device_info(), interactive=False)
             with gr.Column(scale=1):
+                model_selector = gr.Dropdown(
+                    label="SAM Modeli Seçimi",
+                    choices=["vit_b", "vit_h", "vit_l"],
+                    value="vit_l",
+                    interactive=True
+                )
                 mask_button = gr.Button("Maske Oluştur")
                 remove_selection_button = gr.Button("Seçimi Sil")
                 clear_mask_button = gr.Button("Maske Temizle")
+                reset_button = gr.Button("Yeni Resim")
                 download_button = gr.Button("Maske İndir")
-                update_dropdown_button = gr.Button("Seçim Listesini Güncelle")  # Yeni düğme
-                selection_dropdown = gr.Dropdown(label="Seçimi Sil", choices=[], interactive=True)  # Seçim listesi
+                update_dropdown_button = gr.Button("Seçim Listesini Güncelle")
+                selection_dropdown = gr.Dropdown(label="Seçimi Sil", choices=[], interactive=True)
         with gr.Row():
             image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
             zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="400px")
@@ -311,6 +331,13 @@ try:
             overlay_output = gr.Image(label="Asıl Resim Üzerinde Maske")
         coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
         zoom_previews = gr.State([])  # Tüm zoom önizlemelerini saklamak için
+
+        # Model seçimi değiştiğinde SAM modelini yeniden yükle
+        model_selector.change(
+            lambda selected_model: load_sam_model(selected_model),
+            inputs=[model_selector],
+            outputs=[]
+        )
 
         # Tıklama ile zoom yapma ve koordinatları saklama
         image_input.select(
@@ -340,6 +367,13 @@ try:
             outputs=[zoom_previews_output, coordinates_list, mask_output, overlay_output]
         )
 
+        # Yeni resim düğmesi
+        reset_button.click(
+            lambda: (None, [], [], None, None),  # Resmi, koordinat listesini, zoom önizlemelerini ve maskeleri sıfırla
+            inputs=[],
+            outputs=[image_input, coordinates_list, zoom_previews, mask_output, overlay_output]
+        )
+
         # Maske indirme düğmesi
         download_button.click(
             download_mask,
@@ -353,6 +387,11 @@ try:
             inputs=[coordinates_list],
             outputs=[selection_dropdown]
         )
+
+        # Logları göstermek için bir Textbox ekliyoruz
+        with gr.Row():
+            log_output = gr.Textbox(label="Loglar", value="", interactive=False, lines=10)
+        gr.update(log_output, value="\n".join(open("application.log").readlines()[-10:]))  # Son 10 log satırını göster
 
     demo.launch(share=True)
     logging.info("Gradio arayüzü başarıyla başlatıldı.")
