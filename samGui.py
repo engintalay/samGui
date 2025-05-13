@@ -301,6 +301,7 @@ try:
                 remove_selection_button = gr.Button("Seçimi Sil")
                 clear_mask_button = gr.Button("Maske Temizle")
                 download_button = gr.Button("Maske İndir")
+                update_dropdown_button = gr.Button("Seçim Listesini Güncelle")  # Yeni düğme
                 selection_dropdown = gr.Dropdown(label="Seçimi Sil", choices=[], interactive=True)  # Seçim listesi
         with gr.Row():
             image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
@@ -345,8 +346,8 @@ try:
             outputs=[]
         )
 
-        # Seçim listesini güncellemek için bir düğme ekleyin
-        coordinates_list.change(
+        # Seçim listesini güncelleme düğmesi
+        update_dropdown_button.click(
             lambda coordinates: gr.Dropdown.update(choices=update_selection_dropdown(coordinates)),
             inputs=[coordinates_list],
             outputs=[selection_dropdown]
