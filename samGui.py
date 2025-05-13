@@ -184,26 +184,27 @@ try:
     # Gradio arayüzü
     logging.info("Gradio arayüzü başlatılıyor...")
     with gr.Blocks() as demo:
-        gr.Markdown("## SAM ile Görüntü Segmentasyonu")
-        gr.Markdown("""
-        ### Kullanım Kılavuzu:
-        1. **Resim Yükle**: Segmentasyon yapmak istediğiniz resmi yükleyin.
-        2. **Tıklama**: Resim üzerinde birden fazla noktaya tıklayın. Tıkladığınız noktalar birleştirilerek tek bir maske oluşturulacaktır.
-        3. **Zoom Önizleme**: Her tıklama için bir zoom penceresi oluşturulacaktır.
-        4. **Maske Oluştur**: 'Maske Oluştur' düğmesine tıklayarak seçilen tüm noktalara göre birleştirilmiş bir maske oluşturabilirsiniz.
-        5. **Son Seçimi Sil**: 'Son Seçimi Sil' düğmesine tıklayarak son seçimi ve ilgili zoom önizlemesini kaldırabilirsiniz.
-        6. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
-        7. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
-        """)
         with gr.Row():
+            with gr.Column(scale=3):
+                gr.Markdown("## SAM ile Görüntü Segmentasyonu")
+                gr.Markdown("""
+                ### Kullanım Kılavuzu:
+                1. **Resim Yükle**: Segmentasyon yapmak istediğiniz resmi yükleyin.
+                2. **Tıklama**: Resim üzerinde birden fazla noktaya tıklayın. Tıkladığınız noktalar birleştirilerek tek bir maske oluşturulacaktır.
+                3. **Zoom Önizleme**: Her tıklama için bir zoom penceresi oluşturulacaktır.
+                4. **Maske Oluştur**: 'Maske Oluştur' düğmesine tıklayarak seçilen tüm noktalara göre birleştirilmiş bir maske oluşturabilirsiniz.
+                5. **Son Seçimi Sil**: 'Son Seçimi Sil' düğmesine tıklayarak son seçimi ve ilgili zoom önizlemesini kaldırabilirsiniz.
+                6. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
+                7. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
+                """)
             with gr.Column(scale=1):
                 mask_button = gr.Button("Maske Oluştur")
                 remove_selection_button = gr.Button("Son Seçimi Sil")
                 clear_mask_button = gr.Button("Maske Temizle")
-            with gr.Column(scale=3):
-                image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
-        zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="200px")
-        mask_output = gr.Image(label="Oluşturulan Maske")
+        with gr.Row():
+            image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
+            zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="200px")
+            mask_output = gr.Image(label="Oluşturulan Maske")
         coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
         zoom_previews = gr.State([])  # Tüm zoom önizlemelerini saklamak için
 
