@@ -342,13 +342,13 @@ try:
         )
 
         # Seçim listesini güncelleme
-        coordinates_list.change(
+        coordinates_list.update(
             lambda coordinates: [f"Seçim {i + 1}: {coord}" for i, coord in enumerate(coordinates)],
             inputs=[coordinates_list],
             outputs=[selection_dropdown]
         )
 
-    demo.launch()
+    demo.launch(share=True)
     logging.info("Gradio arayüzü başarıyla başlatıldı.")
 except Exception as e:
     logging.error(f"Hata oluştu: {e}")
