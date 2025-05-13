@@ -4,6 +4,7 @@ from PIL import Image
 from segment_anything import SamPredictor, sam_model_registry
 import sys  # Sunucuyu kapatmak için gerekli
 import logging  # Loglama için gerekli
+import torch  # Donanım bilgisi için gerekli
 
 # Loglama ayarları
 logging.basicConfig(
@@ -195,6 +196,34 @@ def overlay_mask_on_image(image, mask):
     combined_image = Image.fromarray(overlay)
     return combined_image
 
+# Yeni bir fonksiyon: Kullanılan donanım bilgisini almak için
+def get_device_info():
+    if torch.cuda.is_available():
+        device_info = f"GPU: {torch.cuda.get_device_name(torch.cuda.current_device())}"
+    else:
+        device_info = "CPU: Kullanılıyor"
+    logging.info(f"Kullanılan donanım: {device_info}")
+    return device_info
+
+# Yeni bir fonksiyon: Belirli bir noktayı silmek için
+def remove_specific_selection(coordinates_list, zoom_previews, index):
+    if index < 0 or index >= len(coordinates_list):
+        logging.warning("Geçerli bir seçim indeksi bulunamadı.")
+        return zoom_previews, coordinates_list
+    logging.info(f"Seçim siliniyor: {coordinates_list[index]}")
+    del coordinates_list[index]
+    del zoom_previews[index]
+    return zoom_previews, coordinates_list
+
+# Yeni bir fonksiyon: Maskeyi indirmek için
+def download_mask(mask):
+    if mask is None:
+        logging.warning("İndirilecek maske bulunamadı.")
+        return None
+    logging.info("Maske indiriliyor...")
+    mask.save("mask.png")
+    return "mask.png"
+
 try:
     # Gradio arayüzü
     logging.info("Gradio arayüzü başlatılıyor...")
@@ -208,19 +237,23 @@ try:
                 2. **Tıklama**: Resim üzerinde birden fazla noktaya tıklayın. Tıkladığınız noktalar birleştirilerek tek bir maske oluşturulacaktır.
                 3. **Zoom Önizleme**: Her tıklama için bir zoom penceresi oluşturulacaktır.
                 4. **Maske Oluştur**: 'Maske Oluştur' düğmesine tıklayarak seçilen tüm noktalara göre birleştirilmiş bir maske oluşturabilirsiniz.
-                5. **Son Seçimi Sil**: 'Son Seçimi Sil' düğmesine tıklayarak son seçimi ve ilgili zoom önizlemesini kaldırabilirsiniz.
+                5. **Seçimi Sil**: Listeden bir seçim yaparak belirli bir noktayı ve ilgili zoom önizlemesini kaldırabilirsiniz.
                 6. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
-                7. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
+                7. **Maske İndir**: 'Maske İndir' düğmesine tıklayarak oluşturulan maskeyi indirebilirsiniz.
+                8. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
                 """)
+                device_info_output = gr.Textbox(label="Kullanılan Donanım", value=get_device_info(), interactive=False)
             with gr.Column(scale=1):
                 mask_button = gr.Button("Maske Oluştur")
-                remove_selection_button = gr.Button("Son Seçimi Sil")
+                remove_selection_button = gr.Button("Seçimi Sil")
                 clear_mask_button = gr.Button("Maske Temizle")
+                download_button = gr.Button("Maske İndir")
+                selection_dropdown = gr.Dropdown(label="Seçimi Sil", choices=[], interactive=True)  # Seçim listesi
         with gr.Row():
             image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
-            zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="400px")  # Yükseklik artırıldı
+            zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="400px")
             mask_output = gr.Image(label="Oluşturulan Maske")
-            overlay_output = gr.Image(label="Asıl Resim Üzerinde Maske")  # Yeni kutu
+            overlay_output = gr.Image(label="Asıl Resim Üzerinde Maske")
         coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
         zoom_previews = gr.State([])  # Tüm zoom önizlemelerini saklamak için
 
@@ -238,10 +271,10 @@ try:
             outputs=[mask_output, overlay_output]
         )
 
-        # Son seçimi silme düğmesi
+        # Seçimi silme düğmesi
         remove_selection_button.click(
-            remove_last_selection,
-            inputs=[coordinates_list, zoom_previews],
+            remove_specific_selection,
+            inputs=[coordinates_list, zoom_previews, selection_dropdown],
             outputs=[zoom_previews_output, coordinates_list]
         )
 
@@ -250,6 +283,20 @@ try:
             lambda: ([], [], None, None),  # Zoom önizlemelerini, koordinat listesini, maskeyi ve overlay'i temizle
             inputs=[],
             outputs=[zoom_previews_output, coordinates_list, mask_output, overlay_output]
+        )
+
+        # Maske indirme düğmesi
+        download_button.click(
+            download_mask,
+            inputs=[mask_output],
+            outputs=[]
+        )
+
+        # Seçim listesini güncelleme
+        coordinates_list.change(
+            lambda coordinates: [f"Seçim {i + 1}: {coord}" for i, coord in enumerate(coordinates)],
+            inputs=[coordinates_list],
+            outputs=[selection_dropdown]
         )
 
     demo.launch()
