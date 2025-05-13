@@ -1,2 +1,3 @@
 # Ignore .pth files
 *.pth
+application.log
