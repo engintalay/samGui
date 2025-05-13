@@ -273,6 +273,10 @@ def download_mask(mask):
     mask.save("mask.png")
     return "mask.png"
 
+# Seçim listesini güncelleme
+def update_selection_dropdown(coordinates):
+    return [f"Seçim {i + 1}: {coord}" for i, coord in enumerate(coordinates)]
+
 try:
     # Gradio arayüzü
     logging.info("Gradio arayüzü başlatılıyor...")
@@ -341,9 +345,9 @@ try:
             outputs=[]
         )
 
-        # Seçim listesini güncelleme
-        coordinates_list.update(
-            lambda coordinates: [f"Seçim {i + 1}: {coord}" for i, coord in enumerate(coordinates)],
+        # Seçim listesini güncellemek için bir düğme ekleyin
+        selection_dropdown.update(
+            lambda coordinates: update_selection_dropdown(coordinates),
             inputs=[coordinates_list],
             outputs=[selection_dropdown]
         )
