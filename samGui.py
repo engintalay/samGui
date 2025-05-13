@@ -5,6 +5,8 @@ from segment_anything import SamPredictor, sam_model_registry
 import sys  # Sunucuyu kapatmak için gerekli
 import logging  # Loglama için gerekli
 import torch  # Donanım bilgisi için gerekli
+import os  # CUDA bellek yönetimi için gerekli
+import urllib.request  # Dosya indirme için gerekli
 
 # Loglama ayarları
 logging.basicConfig(
@@ -16,13 +18,57 @@ logging.basicConfig(
     ]
 )
 
+# CUDA bellek yönetimi ayarı
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+# GPU belleğini kontrol et ve yetersizse CPU'ya geç
+def check_and_set_device(required_memory_mb=6144):  # En az 6 GB boş bellek gereksinimi
+    if torch.cuda.is_available():
+        free_memory = torch.cuda.get_device_properties(0).total_memory - torch.cuda.memory_allocated(0)
+        free_memory_mb = free_memory / (1024 * 1024)  # Byte to MB
+        logging.info(f"GPU belleği kontrol ediliyor: {free_memory_mb:.2f} MB boş.")
+        if free_memory_mb < required_memory_mb:
+            logging.warning(f"GPU belleği yetersiz ({free_memory_mb:.2f} MB). CPU'ya geçiliyor...")
+            return torch.device("cpu")
+        else:
+            logging.info("GPU belleği yeterli. GPU kullanılacak.")
+            return torch.device("cuda")
+    else:
+        logging.warning("GPU bulunamadı. CPU kullanılacak.")
+        return torch.device("cpu")
+
 # SAM modelini yükleme
 logging.info("SAM modeli yükleniyor...")
-sam_checkpoint = "sam_vit_h_4b8939.pth"  # Model dosyasını indirip bu yola koymalısınız
-model_type = "vit_h"
+device = check_and_set_device(required_memory_mb=6144)  # En az 6 GB boş bellek gereksinimi
+sam_checkpoint = "c:/Users/engin/projects/samGui/sam_vit_b_01ec64.pth"  # Dosyanın tam yolu
+
+# Eğer dosya mevcut değilse indir
+if not os.path.exists(sam_checkpoint):
+    logging.info("SAM model dosyası indiriliyor...")
+    url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+    urllib.request.urlretrieve(url, sam_checkpoint)
+    logging.info("SAM model dosyası başarıyla indirildi.")
+
+model_type = "vit_b"  # Daha küçük model tipi
 sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+sam.to(device)  # Modeli seçilen cihaza taşı
 predictor = SamPredictor(sam)
-logging.info("SAM modeli başarıyla yüklendi.")
+logging.info(f"SAM modeli başarıyla yüklendi. Kullanılan cihaz: {device}")
+
+# Yeni bir fonksiyon: GPU belleği yetersizse işlemleri CPU'ya taşı
+def safe_predict(predictor, *args, **kwargs):
+    try:
+        # GPU'da çalıştırmayı dene
+        return predictor.predict(*args, **kwargs)
+    except (RuntimeError, torch.cuda.OutOfMemoryError) as e:
+        if "CUDA out of memory" in str(e):
+            logging.warning("GPU belleği yetersiz. İşlem CPU'ya taşınıyor...")
+            predictor.model.to("cpu")  # Modeli CPU'ya taşı
+            result = predictor.predict(*args, **kwargs)
+            predictor.model.to(device)  # İşlemden sonra modeli tekrar GPU'ya taşı
+            return result
+        else:
+            raise e
 
 # Yeni bir fonksiyon: Tıklama noktalarını işlemek ve maske oluşturmak için
 def generate_mask_with_click(image, coordinates):
@@ -36,7 +82,7 @@ def generate_mask_with_click(image, coordinates):
     # Tıklama noktasını kullanarak maske oluşturma
     input_point = np.array([[x, y]])
     input_label = np.array([1])  # 1: foreground (ön plan)
-    masks, _, _ = predictor.predict(point_coords=input_point, point_labels=input_label, box=None)
+    masks, _, _ = safe_predict(predictor, point_coords=input_point, point_labels=input_label, box=None)
 
     # İlk maskeyi döndürme
     mask = masks[0]
@@ -135,7 +181,7 @@ def combine_masks(image, coordinates_list):
         logging.info(f"{x}, {y} koordinatları için maske oluşturuluyor...")
         input_point = np.array([[x, y]])
         input_label = np.array([1])  # 1: foreground (ön plan)
-        masks, _, _ = predictor.predict(point_coords=input_point, point_labels=input_label, box=None)
+        masks, _, _ = safe_predict(predictor, point_coords=input_point, point_labels=input_label, box=None)
 
         # İlk maskeyi al
         mask = masks[0]
