@@ -180,6 +180,21 @@ def remove_last_selection(coordinates_list, zoom_previews):
     zoom_previews.pop()
     return zoom_previews, coordinates_list
 
+# Yeni bir fonksiyon: Maskeyi asıl resim üzerinde göstermek için
+def overlay_mask_on_image(image, mask):
+    if mask is None:
+        logging.warning("Gösterilecek maske bulunamadı.")
+        return image
+    logging.info("Maske asıl resim üzerine bindiriliyor...")
+    image_np = np.array(image)
+    mask_np = np.array(mask)
+
+    # Maskeyi kırmızı renkle bindir
+    overlay = image_np.copy()
+    overlay[mask_np > 0] = [255, 0, 0]  # Kırmızı renk
+    combined_image = Image.fromarray(overlay)
+    return combined_image
+
 try:
     # Gradio arayüzü
     logging.info("Gradio arayüzü başlatılıyor...")
@@ -205,6 +220,7 @@ try:
             image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
             zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="400px")  # Yükseklik artırıldı
             mask_output = gr.Image(label="Oluşturulan Maske")
+            overlay_output = gr.Image(label="Asıl Resim Üzerinde Maske")  # Yeni kutu
         coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
         zoom_previews = gr.State([])  # Tüm zoom önizlemelerini saklamak için
 
@@ -217,9 +233,9 @@ try:
 
         # Maske oluşturma düğmesi
         mask_button.click(
-            combine_masks,
+            lambda image, coordinates: (combine_masks(image, coordinates), overlay_mask_on_image(image, combine_masks(image, coordinates))),
             inputs=[image_input, coordinates_list],
-            outputs=[mask_output]
+            outputs=[mask_output, overlay_output]
         )
 
         # Son seçimi silme düğmesi
@@ -231,9 +247,9 @@ try:
 
         # Maske temizleme düğmesi
         clear_mask_button.click(
-            lambda: ([], [], None),  # Zoom önizlemelerini, koordinat listesini ve maskeyi temizle
+            lambda: ([], [], None, None),  # Zoom önizlemelerini, koordinat listesini, maskeyi ve overlay'i temizle
             inputs=[],
-            outputs=[zoom_previews_output, coordinates_list, mask_output]
+            outputs=[zoom_previews_output, coordinates_list, mask_output, overlay_output]
         )
 
     demo.launch()
