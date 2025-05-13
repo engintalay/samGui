@@ -93,20 +93,30 @@ def clear_mask():
 def add_mask(image, coordinates, current_mask):
     if coordinates is None:
         logging.warning("Maske eklemek için önce bir noktaya tıklayın.")
-        return current_mask
+        return current_mask, current_mask  # Mevcut maskeyi iki kez döndür
+
     logging.info(f"Yeni maske ekleniyor. Son tıklanan koordinatlar: {coordinates}")
     x, y = coordinates
     new_mask = generate_mask_with_click(image, gr.SelectData(index=(x, y)))
 
     if current_mask is None:
-        return new_mask  # Eğer mevcut maske yoksa, yeni maskeyi döndür
+        return new_mask, new_mask  # Eğer mevcut maske yoksa, yeni maskeyi iki kez döndür
 
     # Mevcut maske ile yeni maskeyi birleştir
     combined_mask = Image.fromarray(
         np.maximum(np.array(current_mask), np.array(new_mask))
     )
     logging.info("Maskeler başarıyla birleştirildi.")
-    return combined_mask
+    return combined_mask, combined_mask  # Birleştirilmiş maskeyi iki kez döndür
+
+# Yeni bir wrapper fonksiyon: Zoom ve tıklama koordinatlarını işlemek için
+def handle_select(image, evt: gr.SelectData):
+    if evt is None or evt.index is None:
+        logging.warning("Zoom yapmak için geçerli bir tıklama algılanmadı.")
+        return None, None  # Zoom önizlemesi ve koordinatlar için boş değerler döndür
+    logging.info(f"Kullanıcı {evt.index[0]}, {evt.index[1]} koordinatlarına tıkladı.")
+    zoomed_image = zoom_preview(image, evt)
+    return zoomed_image, evt.index
 
 try:
     # Gradio arayüzü
@@ -131,7 +141,7 @@ try:
 
         # Tıklama ile zoom yapma
         image_input.select(
-            lambda image, evt: (handle_zoom(image, evt), evt.index if evt else None),
+            handle_select,
             inputs=[image_input],
             outputs=[zoom_output, last_click]
         )
