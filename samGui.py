@@ -203,7 +203,7 @@ try:
                 clear_mask_button = gr.Button("Maske Temizle")
         with gr.Row():
             image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
-            zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="200px")
+            zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="400px")  # Yükseklik artırıldı
             mask_output = gr.Image(label="Oluşturulan Maske")
         coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
         zoom_previews = gr.State([])  # Tüm zoom önizlemelerini saklamak için
