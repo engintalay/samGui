@@ -346,8 +346,8 @@ try:
         )
 
         # Seçim listesini güncellemek için bir düğme ekleyin
-        selection_dropdown.update(
-            lambda coordinates: update_selection_dropdown(coordinates),
+        coordinates_list.change(
+            lambda coordinates: gr.Dropdown.update(choices=update_selection_dropdown(coordinates)),
             inputs=[coordinates_list],
             outputs=[selection_dropdown]
         )
