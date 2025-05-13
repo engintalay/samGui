@@ -267,6 +267,9 @@ def download_mask(mask):
         logging.warning("İndirilecek maske bulunamadı.")
         return None
     logging.info("Maske indiriliyor...")
+    # Maskeyi PIL.Image formatına dönüştür
+    if isinstance(mask, np.ndarray):
+        mask = Image.fromarray((mask * 255).astype(np.uint8))  # NumPy'den PIL'e dönüştür
     mask.save("mask.png")
     return "mask.png"
 
