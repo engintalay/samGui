@@ -1,0 +1,6 @@
+gradio
+numpy
+Pillow
+git+https://github.com/facebookresearch/segment-anything.git
+torch
+torchvision

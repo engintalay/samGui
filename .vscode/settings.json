@@ -1,0 +1,4 @@
+{
+  "python.pythonPath": "C:\Users\engin\AppData\Local\Microsoft\WindowsApps\python.exe",
+  "python.envFile": "${workspaceFolder}/.env"
+}
