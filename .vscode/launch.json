@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "Python: samGui",
-      "type": "debugpy",
+      "type": "python",
       "request": "launch",
       "program": "${workspaceFolder}/samGui.py",
       "console": "integratedTerminal"
