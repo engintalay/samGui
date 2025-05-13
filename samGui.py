@@ -40,7 +40,7 @@ def check_and_set_device(required_memory_mb=6144):  # En az 6 GB boş bellek ger
 # SAM modelini yükleme
 logging.info("SAM modeli yükleniyor...")
 device = check_and_set_device(required_memory_mb=6144)  # En az 6 GB boş bellek gereksinimi
-sam_checkpoint = "c:/Users/engin/projects/samGui/sam_vit_b_01ec64.pth"  # Dosyanın tam yolu
+sam_checkpoint = "sam_vit_b_01ec64.pth"  # Dosyanın tam yolu
 
 # Eğer dosya mevcut değilse indir
 if not os.path.exists(sam_checkpoint):
