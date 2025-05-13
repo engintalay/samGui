@@ -24,8 +24,8 @@ predictor = SamPredictor(sam)
 logging.info("SAM modeli başarıyla yüklendi.")
 
 # Yeni bir fonksiyon: Tıklama noktalarını işlemek ve maske oluşturmak için
-def generate_mask_with_click(image, evt: gr.SelectData):
-    x, y = evt.index
+def generate_mask_with_click(image, coordinates):
+    x, y = coordinates
     logging.info(f"Kullanıcı {x}, {y} koordinatlarına tıkladı. Maske oluşturuluyor...")
 
     # Görüntüyü SAM modeline uygun şekilde işleme
@@ -82,7 +82,7 @@ def handle_mask(image, coordinates):
         return None
     logging.info(f"Maske oluşturuluyor. Son tıklanan koordinatlar: {coordinates}")
     x, y = coordinates
-    return generate_mask_with_click(image, gr.SelectData(index=(x, y)))
+    return generate_mask_with_click(image, (x, y))
 
 # Yeni bir fonksiyon: Maskeyi temizlemek için
 def clear_mask():
@@ -97,7 +97,7 @@ def add_mask(image, coordinates, current_mask):
 
     logging.info(f"Yeni maske ekleniyor. Son tıklanan koordinatlar: {coordinates}")
     x, y = coordinates
-    new_mask = generate_mask_with_click(image, gr.SelectData(index=(x, y)))
+    new_mask = generate_mask_with_click(image, (x, y))
 
     if current_mask is None:
         return new_mask, new_mask  # Eğer mevcut maske yoksa, yeni maskeyi iki kez döndür
