@@ -391,7 +391,9 @@ try:
         # Logları göstermek için bir Textbox ekliyoruz
         with gr.Row():
             log_output = gr.Textbox(label="Loglar", value="", interactive=False, lines=10)
-        gr.update(log_output, value="\n".join(open("application.log").readlines()[-10:]))  # Son 10 log satırını göster
+        log_output.update(
+            value="\n".join(open("application.log", encoding="utf-8", errors="ignore").readlines()[-10:])  # Son 10 log satırını göster
+        )
 
     demo.launch(share=True)
     logging.info("Gradio arayüzü başarıyla başlatıldı.")
