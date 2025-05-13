@@ -40,16 +40,17 @@ def check_and_set_device(required_memory_mb=6144):  # En az 6 GB boş bellek ger
 # SAM modelini yükleme
 logging.info("SAM modeli yükleniyor...")
 device = check_and_set_device(required_memory_mb=6144)  # En az 6 GB boş bellek gereksinimi
-sam_checkpoint = "sam_vit_b_01ec64.pth"  # Dosyanın tam yolu
+sam_checkpoint = "sam_vit_l_0b3195.pth"  # vit_l modeli için dosya adı
 
 # Eğer dosya mevcut değilse indir
 if not os.path.exists(sam_checkpoint):
     logging.info("SAM model dosyası indiriliyor...")
-    url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth"
+    url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth"
     urllib.request.urlretrieve(url, sam_checkpoint)
     logging.info("SAM model dosyası başarıyla indirildi.")
 
-model_type = "vit_b"  # Daha küçük model tipi
+model_type = "vit_l"  # En büyük model tipi
+logging.info(f"Kullanılan SAM modeli: {model_type}")  # Model türünü logla
 sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
 sam.to(device)  # Modeli seçilen cihaza taşı
 predictor = SamPredictor(sam)
