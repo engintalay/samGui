@@ -118,6 +118,46 @@ def handle_select(image, evt: gr.SelectData):
     zoomed_image = zoom_preview(image, evt)
     return zoomed_image, evt.index
 
+# Yeni bir fonksiyon: Birden fazla seçimi birleştirerek tek bir maske oluşturmak için
+def combine_masks(image, coordinates_list):
+    if not coordinates_list:
+        logging.warning("Maske birleştirmek için önce birden fazla nokta seçin.")
+        return None
+    logging.info(f"{len(coordinates_list)} nokta seçildi. Maskeler birleştiriliyor...")
+
+    # Görüntüyü SAM modeline uygun şekilde işleme
+    image = np.array(image)
+    predictor.set_image(image)
+
+    combined_mask = None
+    for x, y in coordinates_list:
+        logging.info(f"{x}, {y} koordinatları için maske oluşturuluyor...")
+        input_point = np.array([[x, y]])
+        input_label = np.array([1])  # 1: foreground (ön plan)
+        masks, _, _ = predictor.predict(point_coords=input_point, point_labels=input_label, box=None)
+
+        # İlk maskeyi al
+        mask = masks[0]
+        if combined_mask is None:
+            combined_mask = mask
+        else:
+            combined_mask = np.maximum(combined_mask, mask)
+
+    # Birleştirilmiş maskeyi döndür
+    combined_mask_image = Image.fromarray((combined_mask * 255).astype(np.uint8))
+    logging.info("Tüm maskeler başarıyla birleştirildi.")
+    return combined_mask_image
+
+# Yeni bir wrapper fonksiyon: Birden fazla tıklama koordinatını saklamak için
+def handle_multi_select(image, evt: gr.SelectData, coordinates_list):
+    if evt is None or evt.index is None:
+        logging.warning("Geçerli bir tıklama algılanmadı.")
+        return None, coordinates_list
+    x, y = evt.index
+    logging.info(f"Kullanıcı {x}, {y} koordinatlarına tıkladı.")
+    coordinates_list.append((x, y))
+    return zoom_preview(image, evt), coordinates_list
+
 try:
     # Gradio arayüzü
     logging.info("Gradio arayüzü başlatılıyor...")
@@ -126,48 +166,38 @@ try:
         gr.Markdown("""
         ### Kullanım Kılavuzu:
         1. **Resim Yükle**: Segmentasyon yapmak istediğiniz resmi yükleyin.
-        2. **Tıklama**: Resim üzerinde bir noktaya tıklayın. Tıkladığınız noktaya göre zoom yapılacaktır.
-        3. **Maske Oluştur**: 'Maske Oluştur' düğmesine tıklayarak son tıklanan noktaya göre maske oluşturabilirsiniz.
-        4. **Maske Ekle**: 'Maske Ekle' düğmesine tıklayarak mevcut maskeye yeni bir maske ekleyebilirsiniz.
-        5. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm maskeleri temizleyebilirsiniz.
-        6. **Sonuç**: Zoom önizlemesi ve oluşturulan maske sağ tarafta görüntülenecektir.
+        2. **Tıklama**: Resim üzerinde birden fazla noktaya tıklayın. Tıkladığınız noktalar birleştirilerek tek bir maske oluşturulacaktır.
+        3. **Maske Oluştur**: 'Maske Oluştur' düğmesine tıklayarak seçilen tüm noktalara göre birleştirilmiş bir maske oluşturabilirsiniz.
+        4. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
+        5. **Sonuç**: Zoom önizlemesi ve oluşturulan maske sağ tarafta görüntülenecektir.
         """)
         with gr.Row():
             image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
             zoom_output = gr.Image(label="Zoom Önizleme")
             mask_output = gr.Image(label="Oluşturulan Maske")
-        last_click = gr.State(None)  # Son tıklanan koordinatları saklamak için
-        current_mask = gr.State(None)  # Mevcut maskeyi saklamak için
+        coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
 
-        # Tıklama ile zoom yapma
+        # Tıklama ile zoom yapma ve koordinatları saklama
         image_input.select(
-            handle_select,
-            inputs=[image_input],
-            outputs=[zoom_output, last_click]
+            handle_multi_select,
+            inputs=[image_input, coordinates_list],
+            outputs=[zoom_output, coordinates_list]
         )
 
         # Maske oluşturma düğmesi
         mask_button = gr.Button("Maske Oluştur")
         mask_button.click(
-            handle_mask,
-            inputs=[image_input, last_click],
+            combine_masks,
+            inputs=[image_input, coordinates_list],
             outputs=[mask_output]
-        )
-
-        # Maske ekleme düğmesi
-        add_mask_button = gr.Button("Maske Ekle")
-        add_mask_button.click(
-            add_mask,
-            inputs=[image_input, last_click, current_mask],
-            outputs=[mask_output, current_mask]
         )
 
         # Maske temizleme düğmesi
         clear_mask_button = gr.Button("Maske Temizle")
         clear_mask_button.click(
-            clear_mask,
+            lambda: (None, []),  # Maskeyi ve koordinat listesini temizle
             inputs=[],
-            outputs=[mask_output, current_mask]
+            outputs=[mask_output, coordinates_list]
         )
 
     demo.launch()
