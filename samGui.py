@@ -170,6 +170,16 @@ def handle_multi_select_with_zoom(image, evt: gr.SelectData, coordinates_list, z
     zoom_previews.append(zoomed_image)
     return zoom_previews, coordinates_list
 
+# Yeni bir fonksiyon: Seçilen maskeleri silmek için
+def remove_last_selection(coordinates_list, zoom_previews):
+    if not coordinates_list:
+        logging.warning("Silinecek seçim bulunamadı.")
+        return zoom_previews, coordinates_list
+    logging.info(f"Son seçim siliniyor: {coordinates_list[-1]}")
+    coordinates_list.pop()
+    zoom_previews.pop()
+    return zoom_previews, coordinates_list
+
 try:
     # Gradio arayüzü
     logging.info("Gradio arayüzü başlatılıyor...")
@@ -181,13 +191,19 @@ try:
         2. **Tıklama**: Resim üzerinde birden fazla noktaya tıklayın. Tıkladığınız noktalar birleştirilerek tek bir maske oluşturulacaktır.
         3. **Zoom Önizleme**: Her tıklama için bir zoom penceresi oluşturulacaktır.
         4. **Maske Oluştur**: 'Maske Oluştur' düğmesine tıklayarak seçilen tüm noktalara göre birleştirilmiş bir maske oluşturabilirsiniz.
-        5. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
-        6. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
+        5. **Son Seçimi Sil**: 'Son Seçimi Sil' düğmesine tıklayarak son seçimi ve ilgili zoom önizlemesini kaldırabilirsiniz.
+        6. **Maske Temizle**: 'Maske Temizle' düğmesine tıklayarak tüm seçimleri ve maskeleri temizleyebilirsiniz.
+        7. **Sonuç**: Zoom önizlemeleri ve oluşturulan maske sağ tarafta görüntülenecektir.
         """)
         with gr.Row():
-            image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
-            zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", elem_id="zoom-gallery", columns=3, height="200px")
-            mask_output = gr.Image(label="Oluşturulan Maske")
+            with gr.Column(scale=1):
+                mask_button = gr.Button("Maske Oluştur")
+                remove_selection_button = gr.Button("Son Seçimi Sil")
+                clear_mask_button = gr.Button("Maske Temizle")
+            with gr.Column(scale=3):
+                image_input = gr.Image(label="Resim Yükle", type="pil", interactive=True)
+        zoom_previews_output = gr.Gallery(label="Zoom Önizlemeleri", columns=3, height="200px")
+        mask_output = gr.Image(label="Oluşturulan Maske")
         coordinates_list = gr.State([])  # Tıklanan tüm koordinatları saklamak için
         zoom_previews = gr.State([])  # Tüm zoom önizlemelerini saklamak için
 
@@ -199,15 +215,20 @@ try:
         )
 
         # Maske oluşturma düğmesi
-        mask_button = gr.Button("Maske Oluştur")
         mask_button.click(
             combine_masks,
             inputs=[image_input, coordinates_list],
             outputs=[mask_output]
         )
 
+        # Son seçimi silme düğmesi
+        remove_selection_button.click(
+            remove_last_selection,
+            inputs=[coordinates_list, zoom_previews],
+            outputs=[zoom_previews_output, coordinates_list]
+        )
+
         # Maske temizleme düğmesi
-        clear_mask_button = gr.Button("Maske Temizle")
         clear_mask_button.click(
             lambda: ([], [], None),  # Zoom önizlemelerini, koordinat listesini ve maskeyi temizle
             inputs=[],
