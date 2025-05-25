@@ -7,6 +7,7 @@ import logging  # Loglama için gerekli
 import torch  # Donanım bilgisi için gerekli
 import os  # CUDA bellek yönetimi için gerekli
 import urllib.request  # Dosya indirme için gerekli
+import cv2  # Görüntü işleme için gerekli
 
 # Loglama ayarları
 logging.basicConfig(
@@ -82,6 +83,13 @@ def safe_predict(predictor, *args, **kwargs):
         else:
             raise e
 
+# Maske üretiminde gölgeleri de dahil etmek için morfolojik genişletme fonksiyonu ekleniyor
+def include_shadows(mask: np.ndarray, dilation_iter=10):
+    """Maske üzerinde morfolojik genişletme ile gölgeleri de dahil et."""
+    kernel = np.ones((7, 7), np.uint8)
+    mask_dilated = cv2.dilate(mask.astype(np.uint8), kernel, iterations=dilation_iter)
+    return mask_dilated
+
 # Yeni bir fonksiyon: Tıklama noktalarını işlemek ve maske oluşturmak için
 def generate_mask_with_click(image, coordinates):
     x, y = coordinates
@@ -96,10 +104,11 @@ def generate_mask_with_click(image, coordinates):
     input_label = np.array([1])  # 1: foreground (ön plan)
     masks, _, _ = safe_predict(predictor, point_coords=input_point, point_labels=input_label, box=None)
 
-    # İlk maskeyi döndürme
+    # İlk maskeyi al ve gölgeleri dahil et
     mask = masks[0]
-    mask_image = Image.fromarray((mask * 255).astype(np.uint8))
-    logging.info("Maske başarıyla oluşturuldu.")
+    mask_with_shadows = include_shadows(mask, dilation_iter=10)
+    mask_image = Image.fromarray((mask_with_shadows * 255).astype(np.uint8))
+    logging.info("Maske (gölgeler dahil) başarıyla oluşturuldu.")
     return mask_image
 
 # Yeni bir fonksiyon: Zoom önizlemesi için
@@ -195,16 +204,17 @@ def combine_masks(image, coordinates_list):
         input_label = np.array([1])  # 1: foreground (ön plan)
         masks, _, _ = safe_predict(predictor, point_coords=input_point, point_labels=input_label, box=None)
 
-        # İlk maskeyi al
+        # İlk maskeyi al ve gölgeleri dahil et
         mask = masks[0]
+        mask_with_shadows = include_shadows(mask, dilation_iter=10)
         if combined_mask is None:
-            combined_mask = mask
+            combined_mask = mask_with_shadows
         else:
-            combined_mask = np.maximum(combined_mask, mask)
+            combined_mask = np.maximum(combined_mask, mask_with_shadows)
 
     # Birleştirilmiş maskeyi döndür
     combined_mask_image = Image.fromarray((combined_mask * 255).astype(np.uint8))
-    logging.info("Tüm maskeler başarıyla birleştirildi.")
+    logging.info("Tüm maskeler (gölgeler dahil) başarıyla birleştirildi.")
     return combined_mask_image
 
 # Yeni bir wrapper fonksiyon: Birden fazla tıklama koordinatını saklamak için
@@ -239,6 +249,16 @@ def remove_last_selection(coordinates_list, zoom_previews):
     zoom_previews.pop()
     return zoom_previews, coordinates_list
 
+# Belirli bir noktayı silmek için fonksiyon (eksikti, ekleniyor)
+def remove_specific_selection(coordinates_list, zoom_previews, index):
+    if index is None or index < 0 or index >= len(coordinates_list):
+        logging.warning("Geçerli bir seçim indeksi bulunamadı.")
+        return zoom_previews, coordinates_list
+    logging.info(f"Seçim siliniyor: {coordinates_list[index]}")
+    del coordinates_list[index]
+    del zoom_previews[index]
+    return zoom_previews, coordinates_list
+
 # Yeni bir fonksiyon: Maskeyi asıl resim üzerinde göstermek için
 def overlay_mask_on_image(image, mask):
     if mask is None:
@@ -263,31 +283,19 @@ def get_device_info():
     logging.info(f"Kullanılan donanım: {device_info}")
     return device_info
 
-# Yeni bir fonksiyon: Belirli bir noktayı silmek için
-def remove_specific_selection(coordinates_list, zoom_previews, index):
-    if index < 0 or index >= len(coordinates_list):
-        logging.warning("Geçerli bir seçim indeksi bulunamadı.")
-        return zoom_previews, coordinates_list
-    logging.info(f"Seçim siliniyor: {coordinates_list[index]}")
-    del coordinates_list[index]
-    del zoom_previews[index]
-    return zoom_previews, coordinates_list
-
-# Yeni bir fonksiyon: Maskeyi indirmek için
+# Maskeyi indirmek için fonksiyon
 def download_mask(mask):
     if mask is None:
         logging.warning("İndirilecek maske bulunamadı.")
-        return None
+        return
     logging.info("Maske indiriliyor...")
-    # Maskeyi PIL.Image formatına dönüştür
     if isinstance(mask, np.ndarray):
-        mask = Image.fromarray((mask * 255).astype(np.uint8))  # NumPy'den PIL'e dönüştür
-    mask.save("mask.png")
-    return "mask.png"
-
-# Seçim listesini güncelleme
-def update_selection_dropdown(coordinates):
-    return [f"Seçim {i + 1}: {coord}" for i, coord in enumerate(coordinates)]
+        mask = Image.fromarray((mask * 255).astype(np.uint8))
+    mask_path = os.path.join(os.getcwd(), "mask.png")
+    mask.save(mask_path)
+    logging.info(f"Maske kaydedildi: {mask_path}")
+    # Kullanıcıya indirme linki sunmak için dosya yolunu döndür
+    return gr.File(mask_path)
 
 try:
     # Gradio arayüzü
@@ -378,14 +386,7 @@ try:
         download_button.click(
             download_mask,
             inputs=[mask_output],
-            outputs=[]
-        )
-
-        # Seçim listesini güncelleme düğmesi
-        update_dropdown_button.click(
-            lambda coordinates: gr.Dropdown.update(choices=update_selection_dropdown(coordinates)),
-            inputs=[coordinates_list],
-            outputs=[selection_dropdown]
+            outputs=[gr.File()]  # Kullanıcıya indirme linki sun
         )
 
         # Logları göstermek için bir Textbox ekliyoruz
@@ -406,6 +407,17 @@ try:
             update_logs,
             inputs=[],
             outputs=[log_output]
+        )
+
+        # Sunucuyu kapatma düğmesi
+        stop_button = gr.Button("Sunucuyu Kapat")
+        def stop_server():
+            logging.info("Sunucu kullanıcı isteğiyle kapatıldı.")
+            sys.exit(0)
+        stop_button.click(
+            stop_server,
+            inputs=[],
+            outputs=[]
         )
 
     demo.launch(share=True)
