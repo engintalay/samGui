@@ -391,8 +391,21 @@ try:
         # Logları göstermek için bir Textbox ekliyoruz
         with gr.Row():
             log_output = gr.Textbox(label="Loglar", value="", interactive=False, lines=10)
-        log_output.update(
-            value="\n".join(open("application.log", encoding="utf-8", errors="ignore").readlines()[-10:])  # Son 10 log satırını göster
+
+        # Logları güncellemek için bir fonksiyon
+        def update_logs():
+            try:
+                with open("application.log", encoding="utf-8", errors="ignore") as log_file:
+                    return "\n".join(log_file.readlines()[-10:])  # Son 10 log satırını döndür
+            except FileNotFoundError:
+                return "Log dosyası bulunamadı."
+
+        # Logları düzenli olarak güncellemek için bir düğme ekliyoruz
+        log_refresh_button = gr.Button("Logları Güncelle")
+        log_refresh_button.click(
+            update_logs,
+            inputs=[],
+            outputs=[log_output]
         )
 
     demo.launch(share=True)
